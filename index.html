@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Tetris Game</title>
+    <style>
+        body { 
+            text-align: center; 
+            font-family: Arial, sans-serif; 
+            margin: 0;
+            overflow: hidden;
+        }
+        canvas { 
+            background: #000; 
+            display: block; 
+            margin: 0 auto; 
+        }
+        .controls {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            padding: 20px;
+        }
+        button {
+            width: 60px;
+            height: 60px;
+            background-color: #333;
+            color: white;
+            font-size: 18px;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>Simple Tetris</h1>
+    <canvas id="tetris" width="240" height="400"></canvas>
+
+    <div class="controls">
+        <button id="left">◀️</button>
+        <button id="rotate">🔄</button>
+        <button id="right">▶️</button>
+        <button id="down">⬇️</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('tetris');
+        const context = canvas.getContext('2d');
+        context.scale(20, 20); // Масштабирование для удобного отображения фигур
+
+        const arena = createMatrix(12, 20);
+
+        const player = {
+            pos: { x: 0, y: 0 },
+            matrix: null,
+            score: 0,
+        };
+
+        // Функция для создания матрицы арены или фигуры
+        function createMatrix(w, h) {
+            const matrix = [];
+            while (h--) {
+                matrix.push(new Array(w).fill(0));
+            }
+            return matrix;
+        }
+
+        // Функция для создания фигуры
+        function createPiece(type) {
+            if (type === 'T') {
+                return [
+                    [0, 0, 0],
+                    [1, 1, 1],
+                    [0, 1, 0],
+                ];
+            } else if (type === 'O') {
+                return [
+                    [1, 1],
+                    [1, 1],
+                ];
+            } else if (type === 'L') {
+                return [
+                    [0, 0, 1],
+                    [1, 1, 1],
+                    [0, 0, 0],
+                ];
+            }
+        }
+
+        // Функция для отрисовки матрицы на экране
+        function drawMatrix(matrix, offset) {
+            matrix.forEach((row, y) => {
+                row.forEach((value, x) => {
+                    if (value !== 0) {
+                        context.fillStyle = 'red'; // Цвет блоков
+                        context.fillRect(x + offset.x, y + offset.y, 1, 1);
+                    }
+                });
+            });
+        }
+
+        // Функция для отрисовки всей игры
+        function draw() {
+            context.fillStyle = '#000'; // Фон холста (чёрный)
+            context.fillRect(0, 0, canvas.width, canvas.height); // Очищаем холст
+
+            drawMatrix(arena, { x: 0, y: 0 }); // Отрисовка арены
+            drawMatrix(player.matrix, player.pos); // Отрисовка фигуры игрока
+        }
+
+        // Проверка столкновений
+        function collide(arena, player) {
+            const [m, o] = [player.matrix, player.pos];
+            for (let y = 0; y < m.length; ++y) {
+                for (let x = 0; x < m[y].length; ++x) {
+                    if (m[y][x] !== 0 &&
+                        (arena[y + o.y] && arena[y + o.y][x + o.x]) !== 0) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        // Объединение арены и фигуры
+        function merge(arena, player) {
+            player.matrix.forEach((row, y) => {
+                row.forEach((value, x) => {
+                    if (value !== 0) {
+                        arena[y + player.pos.y][x + player.pos.x] = value;
+                    }
+                });
+            });
+        }
+
+        // Удаление заполненных строк
+        function arenaSweep() {
+            outer: for (let y = arena.length - 1; y >= 0; --y) {
+                for (let x = 0; x < arena[y].length; ++x) {
+                    if (arena[y][x] === 0) {
+                        continue outer;
+                    }
+                }
+                const row = arena.splice(y, 1)[0].fill(0); // Удаляем строку
+                arena.unshift(row); // Добавляем пустую строку сверху
+                ++y;
+            }
+        }
+
+        // Перемещение игрока вниз
+        function playerDrop() {
+            player.pos.y++;
+            if (collide(arena, player)) {
+                player.pos.y--;
+                merge(arena, player);
+                playerReset();
+                arenaSweep(); // Вызов функции для удаления заполненных строк
+            }
+            dropCounter = 0;
+        }
+
+        // Перемещение игрока влево и вправо
+        function playerMove(dir) {
+            player.pos.x += dir;
+            if (collide(arena, player)) {
+                player.pos.x -= dir;
+            }
+        }
+
+        // Сброс позиции игрока и создание новой фигуры
+        function playerReset() {
+            const pieces = 'TOL'; // Типы фигур
+            player.matrix = createPiece(pieces[pieces.length * Math.random() | 0]);
+            player.pos.y = 0;
+            player.pos.x = (arena[0].length / 2 | 0) - (player.matrix[0].length / 2 | 0);
+            if (collide(arena, player)) {
+                arena.forEach(row => row.fill(0)); // Если игра проиграна, очищаем арену
+                player.score = 0;
+            }
+        }
+
+        // Управление поворотом фигуры
+        function playerRotate(dir) {
+            const pos = player.pos.x;
+            let offset = 1;
+            rotate(player.matrix, dir);
+            while (collide(arena, player)) {
+                player.pos.x += offset;
+                offset = -(offset + (offset > 0 ? 1 : -1));
+                if (offset > player.matrix[0].length) {
+                    rotate(player.matrix, -dir);
+                    player.pos.x = pos;
+                    return;
+                }
+            }
+        }
+
+        // Поворот матрицы фигуры
+        function rotate(matrix, dir) {
+            for (let y = 0; y < matrix.length; ++y) {
+                for (let x = 0; x < y; ++x) {
+                    [matrix[x][y], matrix[y][x]] = [matrix[y][x], matrix[x][y]];
+                }
+            }
+            if (dir > 0) {
+                matrix.forEach(row => row.reverse());
+            } else {
+                matrix.reverse();
+            }
+        }
+
+        // Обновление кадра игры
+        let dropCounter = 0;
+        let dropInterval = 1000;
+
+        let lastTime = 0;
+        function update(time = 0) {
+            const deltaTime = time - lastTime;
+            lastTime = time;
+
+            dropCounter += deltaTime;
+            if (dropCounter > dropInterval) {
+                playerDrop();
+            }
+
+            draw(); // Отрисовываем игру
+            requestAnimationFrame(update); // Цикл обновления
+        }
+
+        // Управление игроком через клавиши
+        document.addEventListener('keydown', event => {
+            if (event.keyCode === 37) {
+                playerMove(-1); // Влево
+            } else if (event.keyCode === 39) {
+                playerMove(1); // Вправо
+            } else if (event.keyCode === 40) {
+                playerDrop(); // Вниз
+            } else if (event.keyCode === 81) {
+                playerRotate(-1); // Поворот против часовой
+            } else if (event.keyCode === 87) {
+                playerRotate(1); // Поворот по часовой
+            }
+        });
+
+        // Сенсорное управление
+        document.getElementById('left').addEventListener('touchstart', () => {
+            playerMove(-1);
+        });
+
+        document.getElementById('right').addEventListener('touchstart', () => {
+            playerMove(1);
+        });
+
+        document.getElementById('rotate').addEventListener('touchstart', () => {
+            playerRotate(1);
+        });
+
+        document.getElementById('down').addEventListener('touchstart', () => {
+            playerDrop();
+        });
+
+        // Начало игры
+        playerReset();
+        update();
+    </script>
+</body>
+</html>
