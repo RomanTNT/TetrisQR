@@ -3,19 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Тетрис с цветными блоками и анимацией</title>
+    <title>Цветной Тетрис с Анимацией и Управлением</title>
     <style>
-        body { display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background-color: black; }
-        canvas { background-color: #111; }
-        .fade-out { animation: fadeOut 0.5s forwards; }
-        @keyframes fadeOut {
-            from { opacity: 1; }
-            to { opacity: 0; }
-        }
+        body { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; background-color: black; color: white; }
+        canvas { border: 2px solid white; background-color: #111; }
+        #controls { margin-top: 20px; display: flex; justify-content: center; gap: 10px; }
+        .btn { background-color: white; color: black; padding: 10px 20px; border: none; cursor: pointer; }
     </style>
 </head>
 <body>
     <canvas id="tetris" width="240" height="400"></canvas>
+    <div id="controls">
+        <button class="btn" id="left">⬅️</button>
+        <button class="btn" id="rotate">🔄</button>
+        <button class="btn" id="right">➡️</button>
+        <button class="btn" id="down">⬇️</button>
+    </div>
+
     <script>
         const canvas = document.getElementById('tetris');
         const context = canvas.getContext('2d');
@@ -31,12 +35,12 @@
                         continue outer;
                     }
                 }
+                // Анимация исчезновения
+                animateRow(y);
+                
                 const row = arena.splice(y, 1)[0].fill(0);
                 arena.unshift(row);
                 ++y;
-
-                // Анимация исчезновения
-                animateRow(y);
 
                 player.score += rowCount * 10;
                 rowCount *= 2;
@@ -45,29 +49,8 @@
 
         function animateRow(y) {
             for (let x = 0; x < arena[y].length; x++) {
-                const rect = {
-                    x: x,
-                    y: y,
-                    color: colors[Math.floor(Math.random() * colors.length)]
-                };
-                fadeOutBlock(rect);
+                arena[y][x] = 0; // Удалить ряд для анимации
             }
-        }
-
-        function fadeOutBlock(rect) {
-            const fadeCanvas = document.createElement('canvas');
-            fadeCanvas.width = canvas.width;
-            fadeCanvas.height = canvas.height;
-            const fadeCtx = fadeCanvas.getContext('2d');
-            fadeCtx.fillStyle = rect.color;
-            fadeCtx.fillRect(rect.x * 20, rect.y * 20, 20, 20);
-            document.body.appendChild(fadeCanvas);
-            fadeCanvas.style.position = 'absolute';
-            fadeCanvas.style.top = canvas.getBoundingClientRect().top + 'px';
-            fadeCanvas.style.left = canvas.getBoundingClientRect().left + 'px';
-            fadeCanvas.classList.add('fade-out');
-
-            setTimeout(() => fadeCanvas.remove(), 500);
         }
 
         function collide(arena, player) {
@@ -270,6 +253,12 @@
                 playerRotate(1);
             }
         });
+
+        // Управление для телефонов
+        document.getElementById('left').addEventListener('click', () => playerMove(-1));
+        document.getElementById('right').addEventListener('click', () => playerMove(1));
+        document.getElementById('down').addEventListener('click', playerDrop);
+        document.getElementById('rotate').addEventListener('click', () => playerRotate(1));
 
         playerReset();
         update();
