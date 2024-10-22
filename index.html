@@ -1,154 +1,288 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tetris</title>
+    <title>Тетрис с Цветами и Анимацией</title>
     <style>
-        body {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-            background-color: black;
-        }
-        canvas {
-            background-color: #111;
-            display: block;
-        }
+        body { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; background-color: black; color: white; }
+        canvas { border: 2px solid white; background-color: #111; }
+        #controls { margin-top: 20px; display: flex; justify-content: center; gap: 10px; }
+        .btn { background-color: white; color: black; padding: 10px 20px; border: none; cursor: pointer; }
     </style>
 </head>
 <body>
-    <canvas id="gameCanvas" width="200" height="400"></canvas>
+    <canvas id="tetris" width="240" height="400"></canvas>
+    <div id="controls">
+        <button class="btn" id="left">⬅️</button>
+        <button class="btn" id="rotate">🔄</button>
+        <button class="btn" id="right">➡️</button>
+        <button class="btn" id="down">⬇️</button>
+    </div>
+
     <script>
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
+        const canvas = document.getElementById('tetris');
+        const context = canvas.getContext('2d');
+        context.scale(20, 20);
 
-        const scale = 20;
-        const rows = canvas.height / scale;
-        const cols = canvas.width / scale;
-
-        let board = Array.from({ length: rows }, () => Array(cols).fill(null));
-        let currentPiece;
-        let gameOver = false;
-
-        const pieces = [
-            [[1, 1, 1, 1]], // I
-            [[1, 1], [1, 1]], // O
-            [[0, 1, 0], [1, 1, 1]], // T
-            [[1, 1, 0], [0, 1, 1]], // S
-            [[0, 1, 1], [1, 1, 0]] // Z
+        const colors = [
+            null,
+            '#FF5733', // Красный
+            '#33FF57', // Зеленый
+            '#3357FF', // Синий
+            '#FF33A1', // Розовый
+            '#F3FF33', // Желтый
+            '#33FFF3', // Голубой
+            '#FF5733'  // Оранжевый
         ];
 
-        function drawBoard() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            for (let r = 0; r < rows; r++) {
-                for (let c = 0; c < cols; c++) {
-                    if (board[r][c]) {
-                        ctx.fillStyle = board[r][c];
-                        ctx.fillRect(c * scale, r * scale, scale, scale);
-                        ctx.strokeRect(c * scale, r * scale, scale, scale);
+        function arenaSweep() {
+            let rowCount = 0;
+            outer: for (let y = arena.length - 1; y >= 0; --y) {
+                for (let x = 0; x < arena[y].length; ++x) {
+                    if (arena[y][x] === 0) {
+                        continue outer;
                     }
                 }
+
+                // Запускаем анимацию мигания для ряда
+                const originalRow = arena[y].slice();
+                let blinkCount = 0;
+
+                const blinkInterval = setInterval(() => {
+                    if (blinkCount < 6) {
+                        for (let x = 0; x < arena[y].length; x++) {
+                            arena[y][x] = blinkCount % 2 === 0 ? 0 : originalRow[x];
+                        }
+                        draw();
+                        blinkCount++;
+                    } else {
+                        clearInterval(blinkInterval);
+
+                        // Удаляем ряд после завершения мигания
+                        arena.splice(y, 1);
+                        arena.unshift(new Array(arena[0].length).fill(0));
+                        rowCount++;
+
+                        if (rowCount > 0) {
+                            player.score += rowCount * 100;
+                        }
+
+                        // Убедимся, что игра продолжает падение после удаления строки
+                        if (!collide(arena, player)) {
+                            update();
+                        }
+                    }
+                }, 100);
+
+                y++;
             }
         }
 
-        function drawPiece(piece, offsetX, offsetY) {
-            ctx.fillStyle = "cyan";
-            piece.forEach((row, y) => {
+        function collide(arena, player) {
+            const [m, o] = [player.matrix, player.pos];
+            for (let y = 0; y < m.length; ++y) {
+                for (let x = 0; x < m[y].length; ++x) {
+                    if (m[y][x] !== 0 &&
+                        (arena[y + o.y] &&
+                        arena[y + o.y][x + o.x]) !== 0) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        function createMatrix(w, h) {
+            const matrix = [];
+            while (h--) {
+                matrix.push(new Array(w).fill(0));
+            }
+            return matrix;
+        }
+
+        function createPiece(type) {
+            if (type === 'T') {
+                return [
+                    [0, 1, 0],
+                    [1, 1, 1],
+                    [0, 0, 0],
+                ];
+            } else if (type === 'O') {
+                return [
+                    [1, 1],
+                    [1, 1],
+                ];
+            } else if (type === 'L') {
+                return [
+                    [0, 0, 1],
+                    [1, 1, 1],
+                    [0, 0, 0],
+                ];
+            } else if (type === 'J') {
+                return [
+                    [1, 0, 0],
+                    [1, 1, 1],
+                    [0, 0, 0],
+                ];
+            } else if (type === 'I') {
+                return [
+                    [0, 0, 0, 0],
+                    [1, 1, 1, 1],
+                    [0, 0, 0, 0],
+                    [0, 0, 0, 0],
+                ];
+            } else if (type === 'S') {
+                return [
+                    [0, 1, 1],
+                    [1, 1, 0],
+                    [0, 0, 0],
+                ];
+            } else if (type === 'Z') {
+                return [
+                    [1, 1, 0],
+                    [0, 1, 1],
+                    [0, 0, 0],
+                ];
+            }
+        }
+
+        function drawMatrix(matrix, offset) {
+            matrix.forEach((row, y) => {
                 row.forEach((value, x) => {
-                    if (value) {
-                        ctx.fillRect((x + offsetX) * scale, (y + offsetY) * scale, scale, scale);
-                        ctx.strokeRect((x + offsetX) * scale, (y + offsetY) * scale, scale, scale);
+                    if (value !== 0) {
+                        context.fillStyle = colors[value];
+                        context.fillRect(x + offset.x, y + offset.y, 1, 1);
                     }
                 });
             });
         }
 
-        function collision(piece, offsetX, offsetY) {
-            return piece.some((row, y) =>
-                row.some((value, x) =>
-                    value && (board[y + offsetY] && board[y + offsetY][x + offsetX]) !== null
-                )
-            );
+        function draw() {
+            context.clearRect(0, 0, canvas.width, canvas.height);
+            drawMatrix(arena, {x: 0, y: 0});
+            drawMatrix(player.matrix, player.pos);
         }
 
-        function mergePiece(piece, offsetX, offsetY) {
-            piece.forEach((row, y) => {
+        function merge(arena, player) {
+            player.matrix.forEach((row, y) => {
                 row.forEach((value, x) => {
-                    if (value) {
-                        board[y + offsetY][x + offsetX] = "cyan";
+                    if (value !== 0) {
+                        arena[y + player.pos.y][x + player.pos.x] = player.color + 1;
                     }
                 });
             });
         }
 
-        function clearLineAnimation(y) {
-            let frame = 0;
-            let interval = setInterval(() => {
-                if (frame < 10) {
-                    // Change color of the row for blinking effect
-                    for (let x = 0; x < cols; x++) {
-                        board[y][x] = (frame % 2 === 0) ? "white" : "cyan"; // Blinking colors
-                    }
-                    drawBoard();
-                    frame++;
-                } else {
-                    clearLine(y);  // Remove the line
-                    clearInterval(interval);
-                    drawBoard(); // Redraw the board after animation
-                }
-            }, 100);
-        }
+        let dropCounter = 0;
+        let dropInterval = 1000;
 
-        function clearLine(y) {
-            for (let row = y; row > 0; row--) {
-                board[row] = [...board[row - 1]];
+        let lastTime = 0;
+        function update(time = 0) {
+            const deltaTime = time - lastTime;
+            lastTime = time;
+
+            dropCounter += deltaTime;
+            if (dropCounter > dropInterval) {
+                playerDrop();
             }
-            board[0] = Array(cols).fill(null);
+
+            draw();
+            requestAnimationFrame(update);
         }
 
-        function checkLines() {
-            for (let y = 0; y < rows; y++) {
-                if (board[y].every(cell => cell !== null)) {
-                    clearLineAnimation(y);  // Play animation before clearing the line
+        function playerDrop() {
+            player.pos.y++;
+            if (collide(arena, player)) {
+                player.pos.y--;
+                merge(arena, player);
+                playerReset();
+                arenaSweep();
+            }
+            dropCounter = 0;
+        }
+
+        function playerMove(dir) {
+            player.pos.x += dir;
+            if (collide(arena, player)) {
+                player.pos.x -= dir;
+            }
+        }
+
+        function playerReset() {
+            const pieces = 'ILJOTSZ';
+            player.matrix = createPiece(pieces[Math.floor(Math.random() * pieces.length)]);
+            player.color = Math.floor(Math.random() * (colors.length - 1)) + 1;
+            player.pos.y = 0;
+            player.pos.x = (arena[0].length / 2 | 0) - (player.matrix[0].length / 2 | 0);
+            if (collide(arena, player)) {
+                arena.forEach(row => row.fill(0));
+                player.score = 0;
+            }
+        }
+
+        function playerRotate(dir) {
+            const pos = player.pos.x;
+            let offset = 1;
+            rotate(player.matrix, dir);
+            while (collide(arena, player)) {
+                player.pos.x += offset;
+                offset = -(offset + (offset > 0 ? 1 : -1));
+                if (offset > player.matrix[0].length) {
+                    rotate(player.matrix, -dir);
+                    player.pos.x = pos;
                     return;
                 }
             }
         }
 
-        function dropPiece() {
-            const offsetX = Math.floor(cols / 2) - Math.floor(currentPiece[0].length / 2);
-            let offsetY = 0;
-
-            function tick() {
-                if (!gameOver) {
-                    if (!collision(currentPiece, offsetX, offsetY + 1)) {
-                        offsetY++;
-                    } else {
-                        mergePiece(currentPiece, offsetX, offsetY);
-                        checkLines();
-                        newPiece();
-                        if (collision(currentPiece, offsetX, offsetY)) {
-                            gameOver = true;
-                            alert('Game Over');
-                        }
-                    }
-                    drawBoard();
-                    drawPiece(currentPiece, offsetX, offsetY);
+        function rotate(matrix, dir) {
+            for (let y = 0; y < matrix.length; ++y) {
+                for (let x = 0; x < y; ++x) {
+                    [
+                        matrix[x][y],
+                        matrix[y][x],
+                    ] = [
+                        matrix[y][x],
+                        matrix[x][y],
+                    ];
                 }
             }
 
-            setInterval(tick, 500);
+            if (dir > 0) {
+                matrix.forEach(row => row.reverse());
+            } else {
+                matrix.reverse();
+            }
         }
 
-        function newPiece() {
-            currentPiece = pieces[Math.floor(Math.random() * pieces.length)];
-        }
+        const arena = createMatrix(12, 20);
+        let player = {
+            pos: {x: 0, y: 0},
+            matrix: null,
+            color: 0,
+            score: 0
+        };
 
-        newPiece();
-        dropPiece();
+        document.addEventListener('keydown', (event) => {
+            if (event.keyCode === 37) {
+                playerMove(-1); // Влево
+            } else if (event.keyCode === 39) {
+                playerMove(1); // Вправо
+            } else if (event.keyCode === 40) {
+                playerDrop(); // Вниз
+            } else if (event.keyCode === 38) {
+                playerRotate(1); // Поворот
+            }
+        });
+
+        document.getElementById('left').addEventListener('click', () => playerMove(-1));
+        document.getElementById('right').addEventListener('click', () => playerMove(1));
+        document.getElementById('rotate').addEventListener('click', () => playerRotate(1));
+        document.getElementById('down').addEventListener('click', () => playerDrop());
+
+        playerReset();
+        update();
     </script>
 </body>
 </html>
